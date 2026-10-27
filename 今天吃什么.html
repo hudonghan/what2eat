@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>今天吃什么</title>
+<style>
+  :root{
+    --orange:#ff6b35; --orange-deep:#e8541f; --cream:#fff8f0;
+    --ink:#3a2c22; --muted:#a08a78; --card:#ffffff; --line:#f0e4d6;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--cream); color:var(--ink); min-height:100vh;
+  }
+  .wrap{ max-width:560px; margin:0 auto; padding:24px 18px 60px; }
+  header{ text-align:center; margin-bottom:22px; }
+  header h1{ margin:0; font-size:26px; letter-spacing:1px; }
+  header p{ margin:6px 0 0; color:var(--muted); font-size:13px; }
+
+  /* 结果卡片 */
+  .result{
+    background:linear-gradient(135deg,#ff8c42,#ff6b35); color:#fff; border-radius:18px;
+    padding:30px 20px; text-align:center; margin-bottom:22px; box-shadow:0 10px 24px rgba(255,107,53,.25);
+    min-height:120px; display:flex; flex-direction:column; justify-content:center;
+  }
+  .result .label{ font-size:13px; opacity:.9; margin-bottom:8px; }
+  .result .dish{ font-size:30px; font-weight:700; letter-spacing:1px; line-height:1.3; }
+  .result .sub{ font-size:14px; opacity:.92; margin-top:8px; }
+  .result.placeholder{ background:#fff; color:var(--muted); box-shadow:none; border:2px dashed var(--line); }
+
+  /* 按钮 */
+  .btns{ display:flex; gap:12px; margin-bottom:26px; }
+  .btn{
+    flex:1; border:none; border-radius:14px; padding:16px 10px; font-size:16px; font-weight:700;
+    cursor:pointer; transition:transform .06s ease; font-family:inherit;
+  }
+  .btn:active{ transform:scale(.96); }
+  .btn-main{ background:var(--orange); color:#fff; box-shadow:0 6px 16px rgba(255,107,53,.3); }
+  .btn-ghost{ background:#fff; color:var(--orange); border:2px solid var(--orange); }
+
+  /* 菜品库 */
+  .lib-title{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .lib-title h2{ margin:0; font-size:16px; }
+  .lib-title span{ font-size:12px; color:var(--muted); }
+
+  .cat{ margin-bottom:18px; }
+  .cat-head{ font-size:13px; color:var(--muted); margin:0 0 8px; }
+  .chips{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{
+    background:var(--card); border:1px solid var(--line); border-radius:20px; padding:7px 12px;
+    font-size:14px; display:flex; align-items:center; gap:6px;
+  }
+  .chip .x{
+    color:#d9c6b4; cursor:pointer; font-size:15px; line-height:1; padding:0 2px;
+  }
+  .chip .x:hover{ color:var(--orange-deep); }
+
+  /* 添加 */
+  .add{ display:flex; gap:8px; margin-top:4px; }
+  .add input{
+    flex:1; border:1px solid var(--line); border-radius:12px; padding:12px; font-size:15px;
+    background:#fff; font-family:inherit; outline:none;
+  }
+  .add input:focus{ border-color:var(--orange); }
+  .add select{
+    border:1px solid var(--line); border-radius:12px; padding:0 8px; font-size:15px;
+    background:#fff; font-family:inherit; color:var(--ink); outline:none;
+  }
+  .add .btn{ flex:0 0 auto; padding:12px 18px; }
+
+  .hint{ margin-top:26px; text-align:center; color:var(--muted); font-size:12px; line-height:1.6; }
+
+  @keyframes shake{ 0%,100%{transform:translateY(0)} 20%{transform:translateY(-6px)} 40%{transform:translateY(4px)} 60%{transform:translateY(-3px)} 80%{transform:translateY(2px)} }
+  .rolling{ animation:shake .5s ease; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>🍚 今天吃什么</h1>
+      <p>治好你的选择困难</p>
+    </header>
+
+    <div class="result placeholder" id="result">
+      <div class="label">点一下，交给命运</div>
+      <div class="dish">?</div>
+    </div>
+
+    <div class="btns">
+      <button class="btn btn-main" id="pickOne">随机选一个</button>
+      <button class="btn btn-ghost" id="pickMeal">选一桌</button>
+    </div>
+
+    <div class="lib-title">
+      <h2>我的菜谱</h2>
+      <span id="count"></span>
+    </div>
+    <div id="lib"></div>
+
+    <div class="add">
+      <input id="newDish" placeholder="加个菜，如：可乐鸡翅" />
+      <select id="newCat"></select>
+      <button class="btn btn-main" id="addBtn">加菜</button>
+    </div>
+
+    <p class="hint">数据存在你手机/电脑本地，不联网、不上传。<br>删掉不想吃的，随机的时候就不会选中它。</p>
+  </div>
+
+<script>
+(function(){
+  var CATS = ['荤菜','素菜','汤','主食'];
+  var DEFAULTS = {
+    '荤菜':['红烧肉','鱼香肉丝','宫保鸡丁','糖醋排骨','可乐鸡翅','红烧鸡翅','辣子鸡','口水鸡','白切鸡','黄焖鸡','大盘鸡','咖喱鸡','青椒肉丝','回锅肉','农家小炒肉','蒜苔炒肉','木须肉','糖醋里脊','锅包肉','京酱肉丝','红烧狮子头','梅菜扣肉','粉蒸肉','番茄牛腩','土豆炖牛肉','萝卜炖牛腩','水煮牛肉','黑椒牛柳','红烧排骨','酱牛肉','清蒸鲈鱼','水煮鱼','酸菜鱼','红烧带鱼','剁椒鱼头','油焖大虾','白灼虾','椒盐虾','蒜蓉粉丝蒸虾','麻辣香锅'],
+    '素菜':['西红柿炒鸡蛋','韭菜炒鸡蛋','尖椒炒鸡蛋','手撕包菜','醋溜白菜','蒜蓉西兰花','蒜蓉生菜','蒜蓉空心菜','清炒油麦菜','香菇青菜','清炒荷兰豆','醋溜土豆丝','酸辣土豆丝','青椒土豆丝','麻婆豆腐','家常豆腐','红烧豆腐','地三鲜','干煸四季豆','干锅花菜','鱼香茄子','虎皮青椒','香辣藕片','凉拌黄瓜','拍黄瓜','凉拌木耳','凉拌腐竹','凉拌海带丝','糖拌西红柿','蒜蓉金针菇'],
+    '汤':['紫菜蛋花汤','番茄鸡蛋汤','菠菜蛋花汤','丝瓜蛋汤','冬瓜排骨汤','玉米排骨汤','莲藕排骨汤','山药排骨汤','海带豆腐汤','鱼头豆腐汤','菌菇汤','鸡汤','西红柿牛肉汤','冬瓜丸子汤','萝卜丝虾皮汤','酸辣汤','三鲜汤'],
+    '主食':['米饭','蛋炒饭','扬州炒饭','面条','汤面','拌面','馒头','花卷','饺子','馄饨','包子','手抓饼','烙饼','韭菜盒子','馅饼','粥','小米粥','疙瘩汤']
+  };
+  var KEY = 'what2eat_v2';
+
+  function load(){
+    try{
+      var raw = localStorage.getItem(KEY);
+      if(raw){ var d = JSON.parse(raw); if(d && d['荤菜']) return d; }
+    }catch(e){}
+    return JSON.parse(JSON.stringify(DEFAULTS));
+  }
+  var data = load();
+
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){} }
+
+  function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+  function pickN(arr, n){
+    var a = arr.slice();
+    var out = [];
+    while(out.length < n && a.length){ out.push(a.splice(Math.floor(Math.random()*a.length),1)[0]); }
+    return out;
+  }
+
+  var result = document.getElementById('result');
+  function show(label, main, sub){
+    result.className = 'result';
+    result.innerHTML = '<div class="label">'+label+'</div><div class="dish">'+main+'</div>'+(sub?'<div class="sub">'+sub+'</div>':'');
+  }
+  function roll(el){
+    el.classList.remove('rolling'); void el.offsetWidth; el.classList.add('rolling');
+  }
+
+  document.getElementById('pickOne').addEventListener('click', function(){
+    var all = CATS.reduce(function(a,c){ return a.concat(data[c]); }, []);
+    if(!all.length){ show('菜谱是空的','先加几个菜吧'); return; }
+    var d = pick(all);
+    show('今天吃',''+d, '就它了 ✌️');
+    roll(result);
+  });
+
+  document.getElementById('pickMeal').addEventListener('click', function(){
+    var meat = pickN(data['荤菜'], 2);
+    var veg = pickN(data['素菜'], 1);
+    var soup = pickN(data['汤'], 1);
+    var main = pickN(data['主食'], 1);
+    var dish = (meat.concat(veg).concat(soup)).join(' · ');
+    var sub = main.length ? '主食：'+main[0] : '';
+    show('今天这一桌', dish, sub);
+    roll(result);
+  });
+
+  // 渲染
+  var lib = document.getElementById('lib');
+  var catSel = document.getElementById('newCat');
+  CATS.forEach(function(c){
+    var o = document.createElement('option'); o.value = c; o.textContent = c; catSel.appendChild(o);
+  });
+
+  function render(){
+    var total = 0;
+    var html = '';
+    CATS.forEach(function(c){
+      var arr = data[c]; total += arr.length;
+      html += '<div class="cat"><div class="cat-head">'+c+'</div><div class="chips">';
+      arr.forEach(function(name, i){
+        html += '<span class="chip">'+name+'<span class="x" data-cat="'+c+'" data-i="'+i+'">×</span></span>';
+      });
+      html += '</div></div>';
+    });
+    lib.innerHTML = html;
+    document.getElementById('count').textContent = '共 '+total+' 道';
+  }
+
+  lib.addEventListener('click', function(e){
+    if(e.target.classList.contains('x')){
+      var cat = e.target.getAttribute('data-cat');
+      var i = parseInt(e.target.getAttribute('data-i'),10);
+      data[cat].splice(i,1);
+      save(); render();
+    }
+  });
+
+  document.getElementById('addBtn').addEventListener('click', add);
+  document.getElementById('newDish').addEventListener('keydown', function(e){ if(e.key==='Enter') add(); });
+  function add(){
+    var inp = document.getElementById('newDish');
+    var name = inp.value.trim();
+    if(!name) return;
+    var cat = catSel.value;
+    data[cat].push(name);
+    save(); render(); inp.value=''; inp.focus();
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
